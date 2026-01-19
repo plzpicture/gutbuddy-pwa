@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  
+  <!-- PWA 메타 태그 -->
+  <meta name="theme-color" content="#A8E6CF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GutBuddy">
+  <meta name="description" content="AI 기반 장 건강 관리 앱">
+  
+  <!-- 파비콘 및 앱 아이콘 -->
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167.png">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- iOS 스플래시 스크린 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  
+  <title>GutBuddy - 장 건강 AI</title>
+  
+  <!-- React 및 Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    html, body, #root {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #FFF9F0;
+      /* iOS 안전 영역 대응 */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    
+    /* 스크롤바 숨기기 */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* PWA 설치 배너 */
+    .install-banner {
+      position: fixed;
+      bottom: 100px;
+      left: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #2D2A26 0%, #4A4540 100%);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      z-index: 9999;
+      animation: slideUp 0.3s ease;
+    }
+    
+    @keyframes slideUp {
+      from { transform: translateY(100px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .install-banner-text {
+      flex: 1;
+    }
+    
+    .install-banner-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    
+    .install-banner-desc {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+    .install-banner-btn {
+      background: #D4AF37;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 10px;
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      margin-left: 12px;
+    }
+    
+    .install-banner-close {
+      background: none;
+      border: none;
+      color: white;
+      opacity: 0.6;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 8px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- 앱 스크립트 -->
+  <script type="text/babel" src="/app.js"></script>
+  
+  <!-- Service Worker 등록 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('✅ Service Worker 등록 성공'))
+          .catch(err => console.log('❌ Service Worker 등록 실패:', err));
+      });
+    }
+    
+    // iOS 설치 안내
+    let deferredPrompt;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    
+    // 이미 설치됐거나, 배너를 닫은 적이 있으면 표시 안함
+    const bannerDismissed = localStorage.getItem('installBannerDismissed');
+    
+    if (isIOS && !isStandalone && !bannerDismissed) {
+      setTimeout(() => {
+        const banner = document.createElement('div');
+        banner.className = 'install-banner';
+        banner.innerHTML = `
+          <div class="install-banner-text">
+            <div class="install-banner-title">📱 GutBuddy 앱 설치</div>
+            <div class="install-banner-desc">공유 버튼 → "홈 화면에 추가"</div>
+          </div>
+          <button class="install-banner-close" onclick="this.parentElement.remove(); localStorage.setItem('installBannerDismissed', 'true');">×</button>
+        `;
+        document.body.appendChild(banner);
+        
+        // 10초 후 자동으로 사라짐
+        setTimeout(() => banner.remove(), 10000);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GutBuddy 아이콘 생성기</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 { color: #4CAF50; }
+    .original-preview {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      text-align: center;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .original-preview img {
+      max-width: 200px;
+      border-radius: 20%;
+    }
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .icon-item {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .icon-item canvas {
+      border-radius: 20%;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .icon-item a {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .icon-item a:hover {
+      background: #45a049;
+    }
+    .icon-item p {
+      margin: 5px 0;
+      font-size: 14px;
+      color: #666;
+    }
+    .download-all {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #4CAF50, #45a049);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    .instructions {
+      background: #E8F5E9;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border-left: 4px solid #4CAF50;
+    }
+    .instructions h3 {
+      margin-top: 0;
+      color: #2E7D32;
+    }
+    .instructions ol {
+      padding-left: 20px;
+      margin-bottom: 0;
+    }
+    .instructions li {
+      margin: 8px 0;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌿 GutBuddy 아이콘 생성기</h1>
+  
+  <div class="original-preview">
+    <h3>원본 아이콘</h3>
+    <img id="originalImg" src="icons/icon-original.png" alt="원본 아이콘" crossorigin="anonymous">
+  </div>
+  
+  <div class="instructions">
+    <h3>📌 사용 방법</h3>
+    <ol>
+      <li>아래 각 아이콘의 <strong>"다운로드"</strong> 버튼을 클릭</li>
+      <li>또는 맨 아래 <strong>"전체 다운로드"</strong> 버튼으로 한번에 받기</li>
+      <li>다운로드된 PNG 파일들을 <code>icons/</code> 폴더에 저장</li>
+    </ol>
+  </div>
+  
+  <div class="icon-grid" id="iconGrid">
+    <div class="loading">⏳ 아이콘 생성 중...</div>
+  </div>
+  
+  <button class="download-all" id="downloadAll">📦 전체 다운로드 (ZIP)</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 167, 180, 192, 512];
+    const grid = document.getElementById('iconGrid');
+    const originalImg = document.getElementById('originalImg');
+    const canvases = {};
+    
+    function generateIcons() {
+      grid.innerHTML = '';
+      
+      sizes.forEach(size => {
+        const item = document.createElement('div');
+        item.className = 'icon-item';
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // 이미지 그리기 (비율 유지, 중앙 크롭)
+        const imgW = originalImg.naturalWidth;
+        const imgH = originalImg.naturalHeight;
+        const minDim = Math.min(imgW, imgH);
+        const srcX = (imgW - minDim) / 2;
+        const srcY = (imgH - minDim) / 2;
+        
+        ctx.drawImage(originalImg, srcX, srcY, minDim, minDim, 0, 0, size, size);
+        
+        // 표시 크기 조정
+        const displaySize = Math.min(size, 128);
+        canvas.style.width = displaySize + 'px';
+        canvas.style.height = displaySize + 'px';
+        
+        // 다운로드 링크
+        const link = document.createElement('a');
+        link.download = `icon-${size}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.textContent = '다운로드';
+        
+        // 저장
+        canvases[size] = canvas;
+        
+        item.innerHTML = `<p><strong>icon-${size}.png</strong></p><p>${size}×${size}</p>`;
+        item.insertBefore(canvas, item.firstChild);
+        item.appendChild(link);
+        
+        grid.appendChild(item);
+      });
+    }
+    
+    // 이미지 로드 후 아이콘 생성
+    originalImg.onload = generateIcons;
+    
+    // 이미 로드된 경우
+    if (originalImg.complete && originalImg.naturalWidth > 0) {
+      generateIcons();
+    }
+    
+    // 전체 다운로드 (ZIP)
+    document.getElementById('downloadAll').onclick = async function() {
+      const zip = new JSZip();
+      const iconsFolder = zip.folder('icons');
+      
+      for (const size of sizes) {
+        const canvas = canvases[size];
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        iconsFolder.file(`icon-${size}.png`, base64, {base64: true});
+      }
+      
+      const content = await zip.generateAsync({type: 'blob'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(content);
+      link.download = 'gutbuddy-icons.zip';
+      link.click();
+    };
+  </script>
+</body>
+</html>
