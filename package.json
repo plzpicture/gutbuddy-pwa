@@ -1,0 +1,11 @@
+{
+  "name": "gutbuddy-pwa",
+  "version": "1.0.0",
+  "description": "GutBuddy - AI 기반 장 건강 관리 앱",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve . -l 3000"
+  },
+  "keywords": ["pwa", "health", "gut", "ai"],
+  "license": "MIT"
+}
