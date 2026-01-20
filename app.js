@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+const { useState, useRef, useEffect } = React;
 
 // ✅ Render.com 배포 서버 URL
 const API_URL = 'https://gutbuddy-api.onrender.com';
@@ -1863,9 +1863,6 @@ const styles = {
   homeIndicator: { position: 'fixed', bottom: '6px', left: '50%', transform: 'translateX(-50%)' },
   homeBar: { width: '120px', height: '4px', background: '#2D2A26', borderRadius: '2px' },
 };
-
-export default GutBuddyApp;
-
 
 // React 앱 렌더링
 const root = ReactDOM.createRoot(document.getElementById("root"));
