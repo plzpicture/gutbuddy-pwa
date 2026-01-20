@@ -26,13 +26,15 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FFF9F0; }
     ::-webkit-scrollbar { display: none; }
     #loading { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 18px; color: #666; }
+    .install-banner { position: fixed; bottom: 100px; left: 20px; right: 20px; background: linear-gradient(135deg, #2D2A26, #4A4540); color: white; padding: 16px 20px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 9999; animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   </style>
 </head>
 <body>
   <div id="root"><div id="loading">🌿 로딩 중...</div></div>
   
   <script type="text/babel">
-    const { useState, useRef } = React;
+    const { useState, useRef, useEffect } = React;
     const API_URL = 'https://gutbuddy-api.onrender.com';
 
     const GutBuddyApp = () => {
@@ -50,6 +52,13 @@
       const [quickAnalysisResult, setQuickAnalysisResult] = useState(null);
       const [touchStart, setTouchStart] = useState(null);
       
+      // 레벨 & 출석 시스템
+      const [userLevel, setUserLevel] = useState(3);
+      const [userExp, setUserExp] = useState(65);
+      const [streak, setStreak] = useState(7);
+      const [totalDays, setTotalDays] = useState(23);
+      const [badges, setBadges] = useState(['🌱', '🔥', '📊']);
+      
       const stoolInputRefs = useRef([null, null, null]);
       const foodInputRefs = useRef([null, null, null]);
       const quickAnalysisRef = useRef(null);
@@ -58,6 +67,29 @@
       const mealNames = { breakfast: '아침', lunch: '점심', dinner: '저녁' };
       const mealIcons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' };
       const mealOrder = ['breakfast', 'lunch', 'dinner'];
+      
+      // 레벨 정보
+      const levels = [
+        { level: 1, name: '씨앗', icon: '🌰', exp: 0 },
+        { level: 2, name: '새싹', icon: '🌱', exp: 50 },
+        { level: 3, name: '떡잎', icon: '🌿', exp: 100 },
+        { level: 4, name: '묘목', icon: '🪴', exp: 200 },
+        { level: 5, name: '나무', icon: '🌳', exp: 350 },
+        { level: 6, name: '꽃나무', icon: '🌸', exp: 500 },
+        { level: 7, name: '열매나무', icon: '🍎', exp: 700 },
+        { level: 8, name: '황금나무', icon: '✨', exp: 1000 }
+      ];
+      
+      const getCurrentLevel = () => levels.find(l => l.level === userLevel) || levels[0];
+      const getNextLevel = () => levels.find(l => l.level === userLevel + 1);
+      const getExpProgress = () => {
+        const current = getCurrentLevel();
+        const next = getNextLevel();
+        if (!next) return 100;
+        const expNeeded = next.exp - current.exp;
+        const expGained = userExp - current.exp;
+        return Math.min(100, Math.round((expGained / expNeeded) * 100));
+      };
 
       const goToPrevMeal = () => { const i = mealOrder.indexOf(activeMeal); if (i > 0) setActiveMeal(mealOrder[i - 1]); };
       const goToNextMeal = () => { const i = mealOrder.indexOf(activeMeal); if (i < 2) setActiveMeal(mealOrder[i + 1]); };
@@ -76,6 +108,7 @@
       const handleAnalyze = () => {
         const result = { gutScore: Math.floor(Math.random() * 20) + 70, calories: Math.floor(Math.random() * 300) + 400, carbs: Math.floor(Math.random() * 30) + 40, protein: Math.floor(Math.random() * 15) + 20, fat: Math.floor(Math.random() * 10) + 10, feedback: '균형 잡힌 식단입니다! 🥗' };
         setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], analyzed: true, analysisResult: result } }));
+        setUserExp(prev => Math.min(prev + 10, 1000));
       };
 
       const handleQuickClick = () => quickAnalysisRef.current?.click();
@@ -91,10 +124,12 @@
             if (data.success && data.result.isStool) {
               setQuickAnalysisResult({ image: img, stoolType: { type: data.result.bristolType, status: data.result.status, emoji: data.result.statusEmoji, color: data.result.status === '좋음' ? '#D4AF37' : '#8BC34A' }, analysis: { condition: data.result.condition, description: data.result.description, solutions: data.result.solutions, tips: data.result.tip }, analyzedAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) });
               setActiveTab('analysis');
+              setUserExp(prev => Math.min(prev + 15, 1000));
             } else { alert(data.result?.message || '변 사진이 아닙니다.'); }
           } catch (err) {
             setQuickAnalysisResult({ image: img, stoolType: { type: '브리스톨 4형', status: '좋음', emoji: '👍', color: '#D4AF37' }, analysis: { condition: '건강한 상태', description: '변의 형태가 양호합니다.', solutions: ['식습관 유지', '수분 섭취', '규칙적 식사'], tips: '⚠️ 데모 모드' }, analyzedAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), isDemo: true });
             setActiveTab('analysis');
+            setUserExp(prev => Math.min(prev + 15, 1000));
           }
           setQuickAnalyzing(false);
         };
@@ -131,6 +166,8 @@
       const gutHealth = calculateGutHealth();
       const nutrients = calculateNutrients();
       const currentMeal = meals[activeMeal];
+      const currentLevelInfo = getCurrentLevel();
+      const nextLevelInfo = getNextLevel();
 
       const s = {
         container: { width: '100%', height: '100%', maxWidth: 430, margin: '0 auto', background: '#FFF9F0', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
@@ -198,7 +235,7 @@
                 {[0, 1, 2].map(i => (<div key={i}><input type="file" accept="image/*" capture="environment" ref={el => foodInputRefs.current[i] = el} onChange={(e) => handleFoodFile(i, e)} style={{ display: 'none' }} /><div onClick={() => handleFoodUpload(i)} style={s.imgBox}>{currentMeal.foodImages[i] ? <img src={currentMeal.foodImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: 24 }}>+</span>}</div></div>))}
               </div>
             </div>
-            <button onClick={handleAnalyze} style={s.btn}>{currentMeal.analyzed ? '✅ 석 완료' : '🔍 AI 분석하기'}</button>
+            <button onClick={handleAnalyze} style={s.btn}>{currentMeal.analyzed ? '✅ 분석 완료' : '🔍 AI 분석하기'}</button>
             {currentMeal.analyzed && currentMeal.analysisResult && (<div style={{ marginTop: 16, padding: 16, background: '#FFF9F0', borderRadius: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#D4AF37', marginBottom: 8 }}>📊 분석 결과</div><div style={{ fontSize: 13, color: '#5D5A56' }}>{currentMeal.analysisResult.feedback}</div></div>)}
           </div>
           <div style={{ textAlign: 'center', color: '#999', fontSize: 12 }}>← 좌우로 스와이프 →</div>
@@ -243,45 +280,104 @@
       const plans = [
         { id: 'Basic', name: 'Basic', price: '무료', monthly: '', yearly: '', daily: '', color: '#999', features: ['하루 1회 분석', '기본 리포트'] },
         { id: 'Essential', name: 'Essential', price: '₩17,000', monthly: '/월', yearly: '₩99,000/년', daily: '일 ₩550', color: '#4CAF50', features: ['무제한 분석', '상세 리포트', 'AI 채팅'] },
-        { id: 'Pro', name: 'Pro ⭐', price: '₩22,000', monthly: '/월', yearly: '₩149,000/년', daily: '일 ₩800', color: '#D4AF37', badge: '추천', features: ['무제한 분석', '프리미엄 리포트', 'AI 채팅 무제한', '맞춤 식단 추천'] },
-        { id: 'Ultimate', name: 'Ultimate', price: '₩33,000', monthly: '/월', yearly: '₩229,000/년', daily: '일 ₩1,200', color: '#9C27B0', badge: '가족', features: ['모든 Pro 기능', '가족 5명 공유', '1:1 전문 상담', '우선 고객 지원'] }
+        { id: 'Pro', name: 'Pro ⭐', price: '₩22,000', monthly: '/월', yearly: '₩149,000/년', daily: '일 ₩800', color: '#D4AF37', badge: '추천', features: ['무제한 분석', '프리미엄 리포트', 'AI 채팅 무제한', '맞춤 식단'] },
+        { id: 'Ultimate', name: 'Ultimate', price: '₩33,000', monthly: '/월', yearly: '₩229,000/년', daily: '일 ₩1,200', color: '#9C27B0', badge: '가족', features: ['모든 Pro 기능', '가족 5명 공유', '1:1 상담', '우선 지원'] }
+      ];
+
+      const allBadges = [
+        { id: 'first', icon: '🌱', name: '첫 기록', desc: '첫 분석 완료', earned: true },
+        { id: 'streak3', icon: '🔥', name: '3일 연속', desc: '3일 연속 기록', earned: true },
+        { id: 'streak7', icon: '⚡', name: '7일 연속', desc: '7일 연속 기록', earned: streak >= 7 },
+        { id: 'analyst', icon: '📊', name: '분석왕', desc: '10회 분석', earned: true },
+        { id: 'streak30', icon: '🏆', name: '30일 챔피언', desc: '30일 연속 기록', earned: streak >= 30 },
+        { id: 'master', icon: '👑', name: '장 건강 마스터', desc: '레벨 5 달성', earned: userLevel >= 5 }
       ];
 
       const renderMy = () => (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: 'white', borderRadius: 16, marginBottom: 20 }}>
-            <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #C49B30)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>👤</div>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 600 }}>사용자</div>
-              <div style={{ fontSize: 13, color: plans.find(p => p.id === currentPlan)?.color }}>{currentPlan === 'Basic' ? '🆓 Basic (무료)' : `✨ ${currentPlan}`}</div>
+          {/* 프로필 & 레벨 */}
+          <div style={s.card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+              <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'linear-gradient(135deg, #A8E6CF, #88D8B0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, boxShadow: '0 4px 12px rgba(168,230,207,0.4)' }}>{currentLevelInfo.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>사용자</div>
+                <div style={{ fontSize: 14, color: '#D4AF37', fontWeight: 500 }}>Lv.{userLevel} {currentLevelInfo.name}</div>
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{currentPlan === 'Basic' ? '🆓 무료 회원' : `✨ ${currentPlan}`}</div>
+              </div>
+            </div>
+            
+            {/* 경험치 바 */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginBottom: 6 }}>
+                <span>EXP {userExp}</span>
+                <span>{nextLevelInfo ? `다음 레벨까지 ${nextLevelInfo.exp - userExp}` : '최고 레벨!'}</span>
+              </div>
+              <div style={{ height: 10, background: '#E8E0D5', borderRadius: 5, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${getExpProgress()}%`, background: 'linear-gradient(90deg, #A8E6CF, #88D8B0)', borderRadius: 5, transition: 'width 0.5s' }}></div>
+              </div>
+            </div>
+
+            {/* 레벨 프리뷰 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #f0f0f0' }}>
+              {levels.slice(0, 6).map((l, i) => (
+                <div key={i} style={{ textAlign: 'center', opacity: l.level <= userLevel ? 1 : 0.4 }}>
+                  <div style={{ fontSize: 20, marginBottom: 2 }}>{l.icon}</div>
+                  <div style={{ fontSize: 9, color: '#999' }}>Lv.{l.level}</div>
+                </div>
+              ))}
             </div>
           </div>
 
+          {/* 출석 & 통계 */}
           <div style={s.card}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🌟 구독 플랜 선택</div>
-            
-            {plans.map((plan) => (
-              <div key={plan.id} onClick={() => setCurrentPlan(plan.id)} style={{ padding: 16, borderRadius: 12, border: currentPlan === plan.id ? `2px solid ${plan.color}` : '1px solid #eee', marginBottom: 12, cursor: 'pointer', background: currentPlan === plan.id ? `${plan.color}15` : 'white', position: 'relative' }}>
-                {plan.badge && <span style={{ position: 'absolute', top: -8, right: 12, background: plan.color, color: 'white', padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{plan.badge}</span>}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 16, fontWeight: 600, color: plan.color }}>{plan.name}</span>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{plan.price}<span style={{ fontSize: 12, fontWeight: 400 }}>{plan.monthly}</span></div>
-                    {plan.yearly && <div style={{ fontSize: 11, color: '#999' }}>{plan.yearly}</div>}
-                  </div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>📅 나의 기록</div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1, background: 'linear-gradient(135deg, #FFE5E5, #FFD4D4)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6B6B' }}>{streak}</div>
+                <div style={{ fontSize: 12, color: '#FF6B6B' }}>🔥 연속 출석</div>
+              </div>
+              <div style={{ flex: 1, background: 'linear-gradient(135deg, #E5F3FF, #D4EBFF)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#4A90D9' }}>{totalDays}</div>
+                <div style={{ fontSize: 12, color: '#4A90D9' }}>📊 총 기록일</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 배지 */}
+          <div style={s.card}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🏅 획득한 배지</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {allBadges.map((badge, i) => (
+                <div key={i} style={{ textAlign: 'center', padding: 12, background: badge.earned ? '#FFF9F0' : '#f5f5f5', borderRadius: 12, opacity: badge.earned ? 1 : 0.5 }}>
+                  <div style={{ fontSize: 28, marginBottom: 4, filter: badge.earned ? 'none' : 'grayscale(100%)' }}>{badge.icon}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: badge.earned ? '#333' : '#999' }}>{badge.name}</div>
+                  <div style={{ fontSize: 9, color: '#999', marginTop: 2 }}>{badge.desc}</div>
                 </div>
-                {plan.daily && <div style={{ fontSize: 12, color: '#666', marginBottom: 10, background: '#f9f9f9', display: 'inline-block', padding: '4px 8px', borderRadius: 6 }}>{plan.daily}</div>}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {plan.features.map((f, j) => <span key={j} style={{ fontSize: 11, background: currentPlan === plan.id ? `${plan.color}20` : '#f5f5f5', padding: '4px 8px', borderRadius: 6, color: currentPlan === plan.id ? plan.color : '#666' }}>✓ {f}</span>)}
+              ))}
+            </div>
+          </div>
+
+          {/* 구독 플랜 */}
+          <div style={s.card}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🌟 구독 플랜</div>
+            {plans.map((plan) => (
+              <div key={plan.id} onClick={() => setCurrentPlan(plan.id)} style={{ padding: 14, borderRadius: 12, border: currentPlan === plan.id ? `2px solid ${plan.color}` : '1px solid #eee', marginBottom: 10, cursor: 'pointer', background: currentPlan === plan.id ? `${plan.color}10` : 'white', position: 'relative' }}>
+                {plan.badge && <span style={{ position: 'absolute', top: -8, right: 12, background: plan.color, color: 'white', padding: '2px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600 }}>{plan.badge}</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: plan.color }}>{plan.name}</span>
+                    {plan.daily && <span style={{ fontSize: 11, color: '#999', marginLeft: 8 }}>{plan.daily}</span>}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: 16, fontWeight: 700 }}>{plan.price}</span>
+                    <span style={{ fontSize: 11 }}>{plan.monthly}</span>
+                    {plan.yearly && <div style={{ fontSize: 10, color: '#999' }}>{plan.yearly}</div>}
+                  </div>
                 </div>
               </div>
             ))}
-            
             {currentPlan !== 'Basic' && (
-              <div style={{ marginTop: 16 }}>
-                <button style={s.btn}>구독 시작하기</button>
-                <button onClick={() => setCurrentPlan('Basic')} style={{ ...s.btn, background: '#f5f5f5', color: '#999', marginTop: 8 }}>구독 해지</button>
-              </div>
+              <button onClick={() => setCurrentPlan('Basic')} style={{ ...s.btn, background: '#f5f5f5', color: '#999', marginTop: 8, padding: 12, fontSize: 14 }}>구독 해지</button>
             )}
           </div>
         </div>
@@ -297,6 +393,19 @@
     };
 
     ReactDOM.createRoot(document.getElementById('root')).render(<GutBuddyApp />);
+  </script>
+  
+  <script>
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isIOS && !isStandalone && !localStorage.getItem('bannerDismissed')) {
+      setTimeout(() => {
+        const b = document.createElement('div'); b.className = 'install-banner';
+        b.innerHTML = '<div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:4px">📱 GutBuddy 앱 설치</div><div style="font-size:12px;opacity:0.8">공유 버튼 → 홈 화면에 추가</div></div><button onclick="this.parentElement.remove();localStorage.setItem(\'bannerDismissed\',\'1\')" style="background:none;border:none;color:white;font-size:20px;padding:8px">×</button>';
+        document.body.appendChild(b); setTimeout(() => b.remove(), 10000);
+      }, 3000);
+    }
   </script>
 </body>
 </html>
