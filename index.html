@@ -26,8 +26,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FFF9F0; }
     ::-webkit-scrollbar { display: none; }
     #loading { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 18px; color: #666; }
-    .install-banner { position: fixed; bottom: 100px; left: 20px; right: 20px; background: linear-gradient(135deg, #2D2A26, #4A4540); color: white; padding: 16px 20px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 9999; animation: slideUp 0.3s ease; }
-    @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .install-banner { position: fixed; bottom: 100px; left: 20px; right: 20px; background: linear-gradient(135deg, #2D2A26, #4A4540); color: white; padding: 16px 20px; border-radius: 16px; display: flex; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 9999; }
   </style>
 </head>
 <body>
@@ -41,9 +40,9 @@
       const [activeTab, setActiveTab] = useState('home');
       const [activeMeal, setActiveMeal] = useState('lunch');
       const [meals, setMeals] = useState({
-        breakfast: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null },
-        lunch: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null },
-        dinner: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null }
+        breakfast: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null, feeling: '' },
+        lunch: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null, feeling: '' },
+        dinner: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null, feeling: '' }
       });
       const [currentPlan, setCurrentPlan] = useState('Basic');
       const [chatMessages, setChatMessages] = useState([{ role: 'assistant', content: '안녕하세요! 장 건강에 대해 궁금한 점을 물어보세요. 🌿', image: null }]);
@@ -51,13 +50,24 @@
       const [quickAnalyzing, setQuickAnalyzing] = useState(false);
       const [quickAnalysisResult, setQuickAnalysisResult] = useState(null);
       const [touchStart, setTouchStart] = useState(null);
+      const [selectedDate, setSelectedDate] = useState(new Date().getDate());
       
       // 레벨 & 출석 시스템
       const [userLevel, setUserLevel] = useState(3);
       const [userExp, setUserExp] = useState(65);
       const [streak, setStreak] = useState(7);
       const [totalDays, setTotalDays] = useState(23);
-      const [badges, setBadges] = useState(['🌱', '🔥', '📊']);
+
+      // 주간 데이터 (차트용)
+      const [weeklyData] = useState([
+        { day: '월', score: 75, emoji: '😊' },
+        { day: '화', score: 82, emoji: '😄' },
+        { day: '수', score: 68, emoji: '😐' },
+        { day: '목', score: 85, emoji: '😄' },
+        { day: '금', score: 78, emoji: '😊' },
+        { day: '토', score: 90, emoji: '🤩' },
+        { day: '일', score: 72, emoji: '😊' }
+      ]);
       
       const stoolInputRefs = useRef([null, null, null]);
       const foodInputRefs = useRef([null, null, null]);
@@ -68,7 +78,6 @@
       const mealIcons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' };
       const mealOrder = ['breakfast', 'lunch', 'dinner'];
       
-      // 레벨 정보
       const levels = [
         { level: 1, name: '씨앗', icon: '🌰', exp: 0 },
         { level: 2, name: '새싹', icon: '🌱', exp: 50 },
@@ -80,15 +89,15 @@
         { level: 8, name: '황금나무', icon: '✨', exp: 1000 }
       ];
       
+      const feelings = ['😄 좋음', '😊 보통', '😐 그저그럼', '😣 불편', '😫 나쁨'];
+      
       const getCurrentLevel = () => levels.find(l => l.level === userLevel) || levels[0];
       const getNextLevel = () => levels.find(l => l.level === userLevel + 1);
       const getExpProgress = () => {
         const current = getCurrentLevel();
         const next = getNextLevel();
         if (!next) return 100;
-        const expNeeded = next.exp - current.exp;
-        const expGained = userExp - current.exp;
-        return Math.min(100, Math.round((expGained / expNeeded) * 100));
+        return Math.min(100, Math.round(((userExp - current.exp) / (next.exp - current.exp)) * 100));
       };
 
       const goToPrevMeal = () => { const i = mealOrder.indexOf(activeMeal); if (i > 0) setActiveMeal(mealOrder[i - 1]); };
@@ -98,15 +107,16 @@
       const onTouchEnd = () => setTouchStart(null);
 
       const calculateGutHealth = () => { let t = 0, c = 0; Object.values(meals).forEach(m => { if (m.analyzed && m.analysisResult) { t += m.analysisResult.gutScore || 70; c++; } }); return c > 0 ? Math.round(t / c) : 72; };
-      const calculateNutrients = () => { let cal = 0, carb = 0, prot = 0, fat = 0; Object.values(meals).forEach(m => { if (m.analyzed && m.analysisResult) { cal += m.analysisResult.calories || 0; carb += m.analysisResult.carbs || 0; prot += m.analysisResult.protein || 0; fat += m.analysisResult.fat || 0; } }); return { cal, carb, prot, fat }; };
+      const calculateNutrients = () => { let cal = 0, carb = 0, prot = 0, fat = 0, fiber = 0; Object.values(meals).forEach(m => { if (m.analyzed && m.analysisResult) { cal += m.analysisResult.calories || 0; carb += m.analysisResult.carbs || 0; prot += m.analysisResult.protein || 0; fat += m.analysisResult.fat || 0; fiber += m.analysisResult.fiber || 0; } }); return { cal, carb, prot, fat, fiber }; };
 
       const handleStoolUpload = (i) => stoolInputRefs.current[i]?.click();
       const handleFoodUpload = (i) => foodInputRefs.current[i]?.click();
       const handleStoolFile = (i, e) => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = (ev) => setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], stoolImages: p[activeMeal].stoolImages.map((img, idx) => idx === i ? ev.target.result : img) } })); r.readAsDataURL(f); } };
       const handleFoodFile = (i, e) => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = (ev) => setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], foodImages: p[activeMeal].foodImages.map((img, idx) => idx === i ? ev.target.result : img) } })); r.readAsDataURL(f); } };
+      const handleFeelingChange = (feeling) => { setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], feeling } })); };
 
       const handleAnalyze = () => {
-        const result = { gutScore: Math.floor(Math.random() * 20) + 70, calories: Math.floor(Math.random() * 300) + 400, carbs: Math.floor(Math.random() * 30) + 40, protein: Math.floor(Math.random() * 15) + 20, fat: Math.floor(Math.random() * 10) + 10, feedback: '균형 잡힌 식단입니다! 🥗' };
+        const result = { gutScore: Math.floor(Math.random() * 20) + 70, calories: Math.floor(Math.random() * 300) + 400, carbs: Math.floor(Math.random() * 30) + 40, protein: Math.floor(Math.random() * 15) + 20, fat: Math.floor(Math.random() * 10) + 10, fiber: Math.floor(Math.random() * 5) + 5, feedback: '균형 잡힌 식단입니다! 식이섬유가 풍부해 장 건강에 좋아요. 🥗' };
         setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], analyzed: true, analysisResult: result } }));
         setUserExp(prev => Math.min(prev + 10, 1000));
       };
@@ -183,114 +193,314 @@
         mealActive: { background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white' }
       };
 
+      // 🏠 홈 탭
       const renderHome = () => (
         <div>
+          {/* 장 건강 상태 */}
           <div style={s.card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B30)', borderRadius: 16, padding: '14px 20px', minWidth: 110, textAlign: 'center' }}>
-                <div style={{ fontSize: 34, fontWeight: 700, color: 'white' }}>{gutHealth}%</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>장 건강</div>
+              <div style={{ background: `conic-gradient(#D4AF37 ${gutHealth}%, #E8E0D5 0)`, borderRadius: '50%', width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#D4AF37' }}>{gutHealth}%</div>
+                  <div style={{ fontSize: 10, color: '#999' }}>장 건강</div>
+                </div>
               </div>
-              <div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#5D5A56', marginBottom: 6 }}>🤖 AI 조언</div>
-                <div style={{ fontSize: 12, color: '#8B7355', lineHeight: 1.5 }}>오늘 식이섬유 섭취가 좋아요! 프로바이오틱스를 추가해보세요.</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26', marginBottom: 8 }}>오늘의 상태: {gutHealth >= 80 ? '😄 좋음' : gutHealth >= 60 ? '😊 양호' : '😐 보통'}</div>
+                <div style={{ background: '#FFF9F0', borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 12, color: '#8B7355', lineHeight: 1.5 }}>🤖 오늘 식이섬유 섭취가 좋아요! 저녁에 프로바이오틱스를 추가해보세요.</div>
+                </div>
               </div>
             </div>
           </div>
-          <div style={{ ...s.card, padding: '18px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 32, fontWeight: 700, color: '#D4AF37' }}>{nutrients.cal || 1650}</span>
-              <span style={{ fontSize: 14, color: '#8B7355' }}>kcal</span>
+
+          {/* 오늘의 영양소 */}
+          <div style={s.card}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🍽️ 오늘의 영양소</div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 36, fontWeight: 700, color: '#D4AF37' }}>{nutrients.cal || 1650}</span>
+              <span style={{ fontSize: 14, color: '#8B7355', marginLeft: 4 }}>kcal</span>
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              {[{ l: '탄수화물', v: nutrients.carb || 180, c: '#FF9500' }, { l: '단백질', v: nutrients.prot || 65, c: '#FF3B30' }, { l: '지방', v: nutrients.fat || 45, c: '#FFCC00' }].map((x, i) => (
-                <div key={i} style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: '16px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: '#2D2A26' }}>{x.v}g</div>
-                  <div style={{ fontSize: 11, color: '#8B7355', marginTop: 4 }}>{x.l}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              {[
+                { label: '탄수화물', value: nutrients.carb || 180, max: 300, unit: 'g', color: '#FF9500' },
+                { label: '단백질', value: nutrients.prot || 65, max: 100, unit: 'g', color: '#FF3B30' },
+                { label: '지방', value: nutrients.fat || 45, max: 70, unit: 'g', color: '#FFCC00' },
+                { label: '식이섬유', value: nutrients.fiber || 18, max: 30, unit: 'g', color: '#4CAF50' }
+              ].map((item, i) => (
+                <div key={i} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#2D2A26' }}>{item.value}</div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 6 }}>{item.label}</div>
+                  <div style={{ height: 6, background: '#E8E0D5', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, (item.value/item.max)*100)}%`, background: item.color, borderRadius: 3 }}></div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* 주간 장 건강 트렌드 */}
+          <div style={s.card}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>📊 주간 트렌드</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, padding: '0 8px' }}>
+              {weeklyData.map((d, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 16 }}>{d.emoji}</span>
+                  <div style={{ width: 28, background: `linear-gradient(to top, ${d.score >= 80 ? '#4CAF50' : d.score >= 60 ? '#FFC107' : '#FF5722'}, ${d.score >= 80 ? '#81C784' : d.score >= 60 ? '#FFD54F' : '#FF8A65'})`, height: `${d.score * 0.8}px`, borderRadius: 4, transition: 'height 0.3s' }}></div>
+                  <span style={{ fontSize: 11, color: '#999' }}>{d.day}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 빠른 분석 버튼 */}
           <input type="file" accept="image/*" capture="environment" ref={quickAnalysisRef} onChange={handleQuickFile} style={{ display: 'none' }} />
-          <button onClick={handleQuickClick} disabled={quickAnalyzing} style={{ ...s.btn, opacity: quickAnalyzing ? 0.7 : 1 }}>{quickAnalyzing ? '⏳ 분석 중...' : '🚽 빠른 변 분석'}</button>
+          <button onClick={handleQuickClick} disabled={quickAnalyzing} style={{ ...s.btn, opacity: quickAnalyzing ? 0.7 : 1 }}>
+            {quickAnalyzing ? '⏳ 분석 중...' : '🚽 빠른 변 분석하기'}
+          </button>
+          <div style={{ textAlign: 'center', fontSize: 11, color: '#999', marginTop: 8 }}>사진을 찍어 즉시 AI 분석을 받아보세요</div>
         </div>
       );
 
+      // 🍽️ 식단 탭
       const renderDiet = () => (
         <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, background: 'white', borderRadius: 12, padding: 8 }}>
             {mealOrder.map(m => (<button key={m} onClick={() => setActiveMeal(m)} style={{ ...s.mealTab, ...(activeMeal === m ? s.mealActive : {}) }}>{mealIcons[m]} {mealNames[m]} {meals[m].analyzed && '✓'}</button>))}
           </div>
+          
           <div style={s.card}>
             <h3 style={{ fontSize: 16, marginBottom: 16, color: '#2D2A26' }}>{mealIcons[activeMeal]} {mealNames[activeMeal]} 기록</h3>
+            
+            {/* 변 사진 */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>🚽 변 사진</div>
+              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>🚽 변 사진 (원형)</div>
               <div style={{ display: 'flex', gap: 12 }}>
-                {[0, 1, 2].map(i => (<div key={i}><input type="file" accept="image/*" capture="environment" ref={el => stoolInputRefs.current[i] = el} onChange={(e) => handleStoolFile(i, e)} style={{ display: 'none' }} /><div onClick={() => handleStoolUpload(i)} style={{ ...s.imgBox, borderRadius: '50%' }}>{currentMeal.stoolImages[i] ? <img src={currentMeal.stoolImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <span style={{ fontSize: 24 }}>+</span>}</div></div>))}
+                {[0, 1, 2].map(i => (
+                  <div key={i}>
+                    <input type="file" accept="image/*" capture="environment" ref={el => stoolInputRefs.current[i] = el} onChange={(e) => handleStoolFile(i, e)} style={{ display: 'none' }} />
+                    <div onClick={() => handleStoolUpload(i)} style={{ ...s.imgBox, borderRadius: '50%', width: 75, height: 75 }}>
+                      {currentMeal.stoolImages[i] ? <img src={currentMeal.stoolImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <span style={{ fontSize: 24, color: '#D4AF37' }}>+</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+
+            {/* 식단 사진 */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>🍽️ 식단 사진</div>
+              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>🍽️ 식단 사진 (사각형)</div>
               <div style={{ display: 'flex', gap: 12 }}>
-                {[0, 1, 2].map(i => (<div key={i}><input type="file" accept="image/*" capture="environment" ref={el => foodInputRefs.current[i] = el} onChange={(e) => handleFoodFile(i, e)} style={{ display: 'none' }} /><div onClick={() => handleFoodUpload(i)} style={s.imgBox}>{currentMeal.foodImages[i] ? <img src={currentMeal.foodImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: 24 }}>+</span>}</div></div>))}
+                {[0, 1, 2].map(i => (
+                  <div key={i}>
+                    <input type="file" accept="image/*" capture="environment" ref={el => foodInputRefs.current[i] = el} onChange={(e) => handleFoodFile(i, e)} style={{ display: 'none' }} />
+                    <div onClick={() => handleFoodUpload(i)} style={{ ...s.imgBox, width: 75, height: 75 }}>
+                      {currentMeal.foodImages[i] ? <img src={currentMeal.foodImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: 24, color: '#D4AF37' }}>+</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            <button onClick={handleAnalyze} style={s.btn}>{currentMeal.analyzed ? '✅ 분석 완료' : '🔍 AI 분석하기'}</button>
-            {currentMeal.analyzed && currentMeal.analysisResult && (<div style={{ marginTop: 16, padding: 16, background: '#FFF9F0', borderRadius: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#D4AF37', marginBottom: 8 }}>📊 분석 결과</div><div style={{ fontSize: 13, color: '#5D5A56' }}>{currentMeal.analysisResult.feedback}</div></div>)}
+
+            {/* 오늘의 느낌 */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>💭 오늘 장 상태는 어떤가요?</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {feelings.map((f, i) => (
+                  <button key={i} onClick={() => handleFeelingChange(f)} style={{ padding: '8px 12px', borderRadius: 20, border: currentMeal.feeling === f ? '2px solid #D4AF37' : '1px solid #E8E0D5', background: currentMeal.feeling === f ? '#FFF9F0' : 'white', fontSize: 12, cursor: 'pointer' }}>{f}</button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={handleAnalyze} style={s.btn}>{currentMeal.analyzed ? '✅ 분석 완료 (다시 분석)' : '🔍 AI 분석하기'}</button>
+            
+            {currentMeal.analyzed && currentMeal.analysisResult && (
+              <div style={{ marginTop: 16, padding: 16, background: 'linear-gradient(135deg, #FFF9F0, #FFF5E6)', borderRadius: 12, border: '1px solid #D4AF37' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#D4AF37', marginBottom: 12 }}>📊 분석 결과</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                  <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 700, color: '#FF9500' }}>{currentMeal.analysisResult.calories}</div><div style={{ fontSize: 10, color: '#999' }}>칼로리</div></div>
+                  <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 700, color: '#4CAF50' }}>{currentMeal.analysisResult.fiber}g</div><div style={{ fontSize: 10, color: '#999' }}>식이섬유</div></div>
+                  <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 700, color: '#D4AF37' }}>{currentMeal.analysisResult.gutScore}점</div><div style={{ fontSize: 10, color: '#999' }}>장 건강</div></div>
+                </div>
+                <div style={{ fontSize: 13, color: '#5D5A56', lineHeight: 1.6 }}>{currentMeal.analysisResult.feedback}</div>
+              </div>
+            )}
           </div>
-          <div style={{ textAlign: 'center', color: '#999', fontSize: 12 }}>← 좌우로 스와이프 →</div>
+          <div style={{ textAlign: 'center', color: '#999', fontSize: 12 }}>← 좌우로 스와이프하여 이동 →</div>
         </div>
       );
 
+      // 📅 캘린더 탭
       const renderCalendar = () => {
         const days = ['일', '월', '화', '수', '목', '금', '토'];
         const today = new Date();
-        const emojis = ['😊', '😐', '😣', '😄', '🙂'];
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const lastDate = new Date(year, month + 1, 0).getDate();
+        const emojis = ['😊', '😄', '😐', '😄', '🙂', '😣', '😊'];
+        const scores = [75, 82, 68, 85, 78, 55, 90];
+        
         return (
-          <div style={s.card}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}><span style={{ fontSize: 18, fontWeight: 600 }}>{today.getFullYear()}년 {today.getMonth() + 1}월</span></div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, textAlign: 'center' }}>
-              {days.map(d => <div key={d} style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>{d}</div>)}
-              {Array.from({ length: 35 }, (_, i) => { const day = i - new Date(today.getFullYear(), today.getMonth(), 1).getDay() + 1; const valid = day > 0 && day <= 31; const isToday = day === today.getDate(); return (<div key={i} style={{ padding: 8, borderRadius: 8, background: isToday ? '#D4AF37' : 'transparent', color: isToday ? 'white' : valid ? '#333' : '#ccc' }}>{valid && <div style={{ fontSize: 12 }}>{day}</div>}{valid && day <= today.getDate() && <div style={{ fontSize: 14 }}>{emojis[day % 5]}</div>}</div>); })}
+          <div>
+            {/* 캘린더 */}
+            <div style={s.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <button style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>◀</button>
+                <span style={{ fontSize: 18, fontWeight: 600 }}>{year}년 {month + 1}월</span>
+                <button style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>▶</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center' }}>
+                {days.map((d, i) => <div key={d} style={{ fontSize: 12, color: i === 0 ? '#FF3B30' : i === 6 ? '#007AFF' : '#999', padding: 8 }}>{d}</div>)}
+                {Array.from({ length: 42 }, (_, i) => {
+                  const day = i - firstDay + 1;
+                  const valid = day > 0 && day <= lastDate;
+                  const isToday = day === today.getDate();
+                  const isSelected = day === selectedDate;
+                  const isPast = day < today.getDate();
+                  const dayOfWeek = i % 7;
+                  return (
+                    <div key={i} onClick={() => valid && setSelectedDate(day)} style={{ padding: 6, borderRadius: 10, background: isSelected ? '#D4AF37' : isToday ? '#FFF9F0' : 'transparent', cursor: valid ? 'pointer' : 'default', border: isToday && !isSelected ? '2px solid #D4AF37' : 'none' }}>
+                      {valid && (
+                        <>
+                          <div style={{ fontSize: 12, color: isSelected ? 'white' : dayOfWeek === 0 ? '#FF3B30' : dayOfWeek === 6 ? '#007AFF' : '#333', fontWeight: isToday ? 700 : 400 }}>{day}</div>
+                          {isPast && <div style={{ fontSize: 14, marginTop: 2 }}>{emojis[day % 7]}</div>}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 선택된 날짜 상세 */}
+            <div style={s.card}>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>📋 {month + 1}월 {selectedDate}일 기록</div>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                <div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                  <div style={{ fontSize: 28 }}>{emojis[selectedDate % 7]}</div>
+                  <div style={{ fontSize: 12, color: '#8B7355', marginTop: 4 }}>장 상태</div>
+                </div>
+                <div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#D4AF37' }}>{scores[selectedDate % 7]}점</div>
+                  <div style={{ fontSize: 12, color: '#8B7355', marginTop: 4 }}>건강 점수</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 월간 통계 차트 */}
+            <div style={s.card}>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>📈 월간 장 건강 추이</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 100, padding: '0 4px' }}>
+                {[65, 70, 75, 68, 82, 78, 85, 72, 88, 76].map((score, i) => (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{ width: 20, height: `${score * 0.9}px`, background: `linear-gradient(to top, ${score >= 75 ? '#4CAF50' : '#FFC107'}, ${score >= 75 ? '#81C784' : '#FFD54F'})`, borderRadius: 3 }}></div>
+                    <span style={{ fontSize: 9, color: '#999' }}>{i * 3 + 1}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ textAlign: 'center', marginTop: 12 }}>
+                <span style={{ fontSize: 12, color: '#4CAF50' }}>● 양호 (75+)</span>
+                <span style={{ fontSize: 12, color: '#FFC107', marginLeft: 16 }}>● 보통 (60-74)</span>
+              </div>
             </div>
           </div>
         );
       };
 
+      // 📊 분석 탭
       const renderAnalysis = () => (
         <div>
+          {/* 오늘의 종합 리포트 */}
+          <div style={{ ...s.card, background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>📋 오늘의 종합 리포트</div>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 32, fontWeight: 700 }}>{gutHealth}%</div>
+                <div style={{ fontSize: 12, opacity: 0.9 }}>장 건강 점수</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, marginBottom: 8 }}>✓ 식이섬유 섭취 양호</div>
+                <div style={{ fontSize: 13, marginBottom: 8 }}>✓ 수분 섭취 권장량 달성</div>
+                <div style={{ fontSize: 13, opacity: 0.8 }}>△ 유산균 섭취 추천</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 빠른 분석 결과 */}
           {quickAnalysisResult && (
             <div style={{ ...s.card, border: '2px solid #D4AF37' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}><span style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white', padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>🔬 분석 결과</span><span style={{ fontSize: 12, color: '#999' }}>{quickAnalysisResult.analyzedAt}</span></div>
-              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}><img src={quickAnalysisResult.image} style={{ width: 100, height: 100, borderRadius: 12, objectFit: 'cover' }} /><div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 12, textAlign: 'center' }}><div style={{ fontSize: 15, fontWeight: 600, color: '#5D5A56' }}>{quickAnalysisResult.stoolType.type}</div><div style={{ fontSize: 28, margin: '8px 0' }}>{quickAnalysisResult.stoolType.emoji}</div><div style={{ fontSize: 14, fontWeight: 600, color: quickAnalysisResult.stoolType.color }}>{quickAnalysisResult.stoolType.status}</div></div></div>
-              <div style={{ background: '#FFF9F0', borderRadius: 12, padding: 16, marginBottom: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#5D5A56', marginBottom: 8 }}>📋 분석</div><div style={{ fontSize: 13, color: '#8B7355', lineHeight: 1.6 }}>{quickAnalysisResult.analysis.description}</div></div>
-              <div style={{ background: '#F0FFF4', borderRadius: 12, padding: 16, marginBottom: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#2E7D32', marginBottom: 10 }}>💡 해결책</div>{quickAnalysisResult.analysis.solutions.map((x, i) => (<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><span style={{ width: 22, height: 22, borderRadius: '50%', background: '#4CAF50', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{i + 1}</span><span style={{ fontSize: 13, color: '#5D5A56' }}>{x}</span></div>))}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                <span style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white', padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>🔬 빠른 분석 결과</span>
+                <span style={{ fontSize: 12, color: '#999' }}>{quickAnalysisResult.analyzedAt}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                <img src={quickAnalysisResult.image} style={{ width: 100, height: 100, borderRadius: 12, objectFit: 'cover' }} />
+                <div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#5D5A56' }}>{quickAnalysisResult.stoolType.type}</div>
+                  <div style={{ fontSize: 28, margin: '8px 0' }}>{quickAnalysisResult.stoolType.emoji}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: quickAnalysisResult.stoolType.color }}>{quickAnalysisResult.stoolType.status}</div>
+                </div>
+              </div>
+              <div style={{ background: '#FFF9F0', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#5D5A56', marginBottom: 8 }}>📋 상세 분석</div>
+                <div style={{ fontSize: 13, color: '#8B7355', lineHeight: 1.6 }}>{quickAnalysisResult.analysis.description}</div>
+              </div>
+              <div style={{ background: '#F0FFF4', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#2E7D32', marginBottom: 10 }}>💡 맞춤 해결책</div>
+                {quickAnalysisResult.analysis.solutions.map((x, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#4CAF50', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{i + 1}</span>
+                    <span style={{ fontSize: 13, color: '#5D5A56' }}>{x}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: '#FFF8E1', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: '#F57C00' }}>🌟 {quickAnalysisResult.analysis.tips}</div>
+              </div>
               <button onClick={() => setQuickAnalysisResult(null)} style={{ ...s.btn, background: '#E8E0D5', color: '#5D5A56' }}>결과 닫기</button>
             </div>
           )}
+
+          {/* AI 상담 */}
           <div style={s.card}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>💬 AI 상담</div>
-            <div style={{ height: 220, overflowY: 'auto', marginBottom: 16 }}>{chatMessages.map((m, i) => (<div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}><div style={{ maxWidth: '80%', padding: 12, borderRadius: 16, background: m.role === 'user' ? 'linear-gradient(135deg, #D4AF37, #C49B30)' : '#F5F0E8', color: m.role === 'user' ? 'white' : '#333' }}>{m.image && <img src={m.image} style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 10, marginBottom: 8 }} />}<div style={{ fontSize: 14, lineHeight: 1.5 }}>{m.content}</div></div></div>))}</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>💬 AI 장 건강 상담</div>
+            <div style={{ height: 200, overflowY: 'auto', marginBottom: 16, padding: 4 }}>
+              {chatMessages.map((m, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
+                  <div style={{ maxWidth: '80%', padding: 12, borderRadius: 16, background: m.role === 'user' ? 'linear-gradient(135deg, #D4AF37, #C49B30)' : '#F5F0E8', color: m.role === 'user' ? 'white' : '#333' }}>
+                    {m.image && <img src={m.image} style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 10, marginBottom: 8 }} />}
+                    <div style={{ fontSize: 14, lineHeight: 1.5 }}>{m.content}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>💡 사진을 첨부하면 AI가 음식을 분석해드려요</div>
             <input type="file" accept="image/*" ref={chatImageRef} onChange={handleChatImgFile} style={{ display: 'none' }} />
-            <div style={{ display: 'flex', gap: 8 }}><button onClick={handleChatImgClick} style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid #ddd', background: 'white', cursor: 'pointer', fontSize: 18 }}>📷</button><input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && sendMessage()} placeholder="메시지 입력..." style={{ flex: 1, padding: 12, borderRadius: 24, border: '1px solid #E8E0D5', fontSize: 14 }} /><button onClick={sendMessage} style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #C49B30)', border: 'none', color: 'white', cursor: 'pointer', fontSize: 18 }}>➤</button></div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleChatImgClick} style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid #ddd', background: 'white', cursor: 'pointer', fontSize: 18 }}>📷</button>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && sendMessage()} placeholder="장 건강에 대해 물어보세요..." style={{ flex: 1, padding: 12, borderRadius: 24, border: '1px solid #E8E0D5', fontSize: 14 }} />
+              <button onClick={sendMessage} style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #C49B30)', border: 'none', color: 'white', cursor: 'pointer', fontSize: 18 }}>➤</button>
+            </div>
           </div>
         </div>
       );
 
+      // 👤 마이 탭
       const plans = [
         { id: 'Basic', name: 'Basic', price: '무료', monthly: '', yearly: '', daily: '', color: '#999', features: ['하루 1회 분석', '기본 리포트'] },
         { id: 'Essential', name: 'Essential', price: '₩17,000', monthly: '/월', yearly: '₩99,000/년', daily: '일 ₩550', color: '#4CAF50', features: ['무제한 분석', '상세 리포트', 'AI 채팅'] },
         { id: 'Pro', name: 'Pro ⭐', price: '₩22,000', monthly: '/월', yearly: '₩149,000/년', daily: '일 ₩800', color: '#D4AF37', badge: '추천', features: ['무제한 분석', '프리미엄 리포트', 'AI 채팅 무제한', '맞춤 식단'] },
-        { id: 'Ultimate', name: 'Ultimate', price: '₩33,000', monthly: '/월', yearly: '₩229,000/년', daily: '일 ₩1,200', color: '#9C27B0', badge: '가족', features: ['모든 Pro 기능', '가족 5명 공유', '1:1 상담', '우선 지원'] }
+        { id: 'Ultimate', name: 'Ultimate', price: '₩33,000', monthly: '/월', yearly: '₩229,000/년', daily: '일 ₩1,200', color: '#9C27B0', badge: '가족', features: ['모든 Pro 기능', '가족 5명', '1:1 상담'] }
       ];
 
       const allBadges = [
-        { id: 'first', icon: '🌱', name: '첫 기록', desc: '첫 분석 완료', earned: true },
-        { id: 'streak3', icon: '🔥', name: '3일 연속', desc: '3일 연속 기록', earned: true },
-        { id: 'streak7', icon: '⚡', name: '7일 연속', desc: '7일 연속 기록', earned: streak >= 7 },
-        { id: 'analyst', icon: '📊', name: '분석왕', desc: '10회 분석', earned: true },
-        { id: 'streak30', icon: '🏆', name: '30일 챔피언', desc: '30일 연속 기록', earned: streak >= 30 },
-        { id: 'master', icon: '👑', name: '장 건강 마스터', desc: '레벨 5 달성', earned: userLevel >= 5 }
+        { icon: '🌱', name: '첫 기록', earned: true },
+        { icon: '🔥', name: '3일 연속', earned: true },
+        { icon: '⚡', name: '7일 연속', earned: streak >= 7 },
+        { icon: '📊', name: '분석왕', earned: true },
+        { icon: '🏆', name: '30일 챔피언', earned: streak >= 30 },
+        { icon: '👑', name: '마스터', earned: userLevel >= 5 }
       ];
 
       const renderMy = () => (
@@ -305,54 +515,40 @@
                 <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{currentPlan === 'Basic' ? '🆓 무료 회원' : `✨ ${currentPlan}`}</div>
               </div>
             </div>
-            
-            {/* 경험치 바 */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', marginBottom: 6 }}>
                 <span>EXP {userExp}</span>
-                <span>{nextLevelInfo ? `다음 레벨까지 ${nextLevelInfo.exp - userExp}` : '최고 레벨!'}</span>
+                <span>{nextLevelInfo ? `다음: ${nextLevelInfo.exp - userExp}` : '최고!'}</span>
               </div>
               <div style={{ height: 10, background: '#E8E0D5', borderRadius: 5, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${getExpProgress()}%`, background: 'linear-gradient(90deg, #A8E6CF, #88D8B0)', borderRadius: 5, transition: 'width 0.5s' }}></div>
+                <div style={{ height: '100%', width: `${getExpProgress()}%`, background: 'linear-gradient(90deg, #A8E6CF, #88D8B0)', borderRadius: 5 }}></div>
               </div>
             </div>
-
-            {/* 레벨 프리뷰 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #f0f0f0' }}>
               {levels.slice(0, 6).map((l, i) => (
                 <div key={i} style={{ textAlign: 'center', opacity: l.level <= userLevel ? 1 : 0.4 }}>
-                  <div style={{ fontSize: 20, marginBottom: 2 }}>{l.icon}</div>
+                  <div style={{ fontSize: 20 }}>{l.icon}</div>
                   <div style={{ fontSize: 9, color: '#999' }}>Lv.{l.level}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* 출석 & 통계 */}
+          {/* 출석 & 배지 */}
           <div style={s.card}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>📅 나의 기록</div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div style={{ flex: 1, background: 'linear-gradient(135deg, #FFE5E5, #FFD4D4)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6B6B' }}>{streak}</div>
-                <div style={{ fontSize: 12, color: '#FF6B6B' }}>🔥 연속 출석</div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <div style={{ flex: 1, background: 'linear-gradient(135deg, #FFE5E5, #FFD4D4)', borderRadius: 12, padding: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: '#FF6B6B' }}>{streak}</div>
+                <div style={{ fontSize: 11, color: '#FF6B6B' }}>🔥 연속</div>
               </div>
-              <div style={{ flex: 1, background: 'linear-gradient(135deg, #E5F3FF, #D4EBFF)', borderRadius: 12, padding: 16, textAlign: 'center' }}>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#4A90D9' }}>{totalDays}</div>
-                <div style={{ fontSize: 12, color: '#4A90D9' }}>📊 총 기록일</div>
+              <div style={{ flex: 1, background: 'linear-gradient(135deg, #E5F3FF, #D4EBFF)', borderRadius: 12, padding: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: '#4A90D9' }}>{totalDays}</div>
+                <div style={{ fontSize: 11, color: '#4A90D9' }}>📊 총 기록</div>
               </div>
             </div>
-          </div>
-
-          {/* 배지 */}
-          <div style={s.card}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🏅 획득한 배지</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              {allBadges.map((badge, i) => (
-                <div key={i} style={{ textAlign: 'center', padding: 12, background: badge.earned ? '#FFF9F0' : '#f5f5f5', borderRadius: 12, opacity: badge.earned ? 1 : 0.5 }}>
-                  <div style={{ fontSize: 28, marginBottom: 4, filter: badge.earned ? 'none' : 'grayscale(100%)' }}>{badge.icon}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: badge.earned ? '#333' : '#999' }}>{badge.name}</div>
-                  <div style={{ fontSize: 9, color: '#999', marginTop: 2 }}>{badge.desc}</div>
-                </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {allBadges.map((b, i) => (
+                <div key={i} style={{ width: 50, height: 50, borderRadius: 12, background: b.earned ? '#FFF9F0' : '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, opacity: b.earned ? 1 : 0.4 }}>{b.icon}</div>
               ))}
             </div>
           </div>
@@ -362,23 +558,13 @@
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🌟 구독 플랜</div>
             {plans.map((plan) => (
               <div key={plan.id} onClick={() => setCurrentPlan(plan.id)} style={{ padding: 14, borderRadius: 12, border: currentPlan === plan.id ? `2px solid ${plan.color}` : '1px solid #eee', marginBottom: 10, cursor: 'pointer', background: currentPlan === plan.id ? `${plan.color}10` : 'white', position: 'relative' }}>
-                {plan.badge && <span style={{ position: 'absolute', top: -8, right: 12, background: plan.color, color: 'white', padding: '2px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600 }}>{plan.badge}</span>}
+                {plan.badge && <span style={{ position: 'absolute', top: -8, right: 12, background: plan.color, color: 'white', padding: '2px 8px', borderRadius: 8, fontSize: 10 }}>{plan.badge}</span>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: plan.color }}>{plan.name}</span>
-                    {plan.daily && <span style={{ fontSize: 11, color: '#999', marginLeft: 8 }}>{plan.daily}</span>}
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: 16, fontWeight: 700 }}>{plan.price}</span>
-                    <span style={{ fontSize: 11 }}>{plan.monthly}</span>
-                    {plan.yearly && <div style={{ fontSize: 10, color: '#999' }}>{plan.yearly}</div>}
-                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: plan.color }}>{plan.name}</span>
+                  <div><span style={{ fontSize: 16, fontWeight: 700 }}>{plan.price}</span><span style={{ fontSize: 11 }}>{plan.monthly}</span></div>
                 </div>
               </div>
             ))}
-            {currentPlan !== 'Basic' && (
-              <button onClick={() => setCurrentPlan('Basic')} style={{ ...s.btn, background: '#f5f5f5', color: '#999', marginTop: 8, padding: 12, fontSize: 14 }}>구독 해지</button>
-            )}
           </div>
         </div>
       );
@@ -386,26 +572,25 @@
       return (
         <div style={s.container}>
           <div style={s.header}>🌿 GutBuddy</div>
-          <div style={s.content}>{activeTab === 'home' && renderHome()}{activeTab === 'diet' && renderDiet()}{activeTab === 'calendar' && renderCalendar()}{activeTab === 'analysis' && renderAnalysis()}{activeTab === 'my' && renderMy()}</div>
-          <nav style={s.navBar}>{[{ id: 'home', icon: '🏠', label: '홈' }, { id: 'diet', icon: '🍽️', label: '식단' }, { id: 'calendar', icon: '📅', label: '캘린더' }, { id: 'analysis', icon: '📊', label: '분석' }, { id: 'my', icon: '👤', label: '마이' }].map(t => (<button key={t.id} onClick={() => setActiveTab(t.id)} style={{ ...s.navItem, ...(activeTab === t.id ? s.navActive : {}) }}><span style={{ fontSize: 24, marginBottom: 4 }}>{t.icon}</span>{t.label}</button>))}</nav>
+          <div style={s.content}>
+            {activeTab === 'home' && renderHome()}
+            {activeTab === 'diet' && renderDiet()}
+            {activeTab === 'calendar' && renderCalendar()}
+            {activeTab === 'analysis' && renderAnalysis()}
+            {activeTab === 'my' && renderMy()}
+          </div>
+          <nav style={s.navBar}>
+            {[{ id: 'home', icon: '🏠', label: '홈' }, { id: 'diet', icon: '🍽️', label: '식단' }, { id: 'calendar', icon: '📅', label: '캘린더' }, { id: 'analysis', icon: '📊', label: '분석' }, { id: 'my', icon: '👤', label: '마이' }].map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ ...s.navItem, ...(activeTab === t.id ? s.navActive : {}) }}>
+                <span style={{ fontSize: 24, marginBottom: 4 }}>{t.icon}</span>{t.label}
+              </button>
+            ))}
+          </nav>
         </div>
       );
     };
 
     ReactDOM.createRoot(document.getElementById('root')).render(<GutBuddyApp />);
-  </script>
-  
-  <script>
-    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    if (isIOS && !isStandalone && !localStorage.getItem('bannerDismissed')) {
-      setTimeout(() => {
-        const b = document.createElement('div'); b.className = 'install-banner';
-        b.innerHTML = '<div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:4px">📱 GutBuddy 앱 설치</div><div style="font-size:12px;opacity:0.8">공유 버튼 → 홈 화면에 추가</div></div><button onclick="this.parentElement.remove();localStorage.setItem(\'bannerDismissed\',\'1\')" style="background:none;border:none;color:white;font-size:20px;padding:8px">×</button>';
-        document.body.appendChild(b); setTimeout(() => b.remove(), 10000);
-      }, 3000);
-    }
   </script>
 </body>
 </html>
