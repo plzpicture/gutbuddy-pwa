@@ -1213,11 +1213,13 @@ const styles = {
   container: {
     width: '100%',
     maxWidth: '430px',
-    minHeight: '100vh',
+    height: '100vh',
     margin: '0 auto',
     background: 'linear-gradient(180deg, #FFF9F0 0%, #FFF5E6 100%)',
     fontFamily: '"Pretendard", -apple-system, BlinkMacSystemFont, sans-serif',
     position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
     overflow: 'hidden',
   },
   statusBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px 8px', fontSize: '14px', fontWeight: '600' },
@@ -1225,7 +1227,7 @@ const styles = {
   statusIcons: { display: 'flex', gap: '6px', fontSize: '12px' },
   header: { padding: '8px 20px 12px' },
   headerTitle: { fontSize: '22px', fontWeight: '700', color: '#2D2A26', margin: 0 },
-  content: { flex: 1, overflowY: 'auto', paddingBottom: '100px', minHeight: 'calc(100vh - 180px)' },
+  content: { flex: 1, overflowY: 'auto', paddingBottom: '100px', WebkitOverflowScrolling: 'touch' },
 
   // Home Tab
   homeContainer: { padding: '0 20px' },
