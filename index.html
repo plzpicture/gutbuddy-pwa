@@ -4,165 +4,299 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <!-- PWA 메타 태그 -->
   <meta name="theme-color" content="#A8E6CF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="GutBuddy">
   <meta name="description" content="AI 기반 장 건강 관리 앱">
   
-  <!-- 파비콘 및 앱 아이콘 -->
-  <link rel="icon" type="image/png" href="/icons/icon-192.png">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
-  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167.png">
-  
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json">
-  
-  <!-- iOS 스플래시 스크린 -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.json">
   
   <title>GutBuddy - 장 건강 AI</title>
   
-  <!-- React 및 Babel -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    
-    html, body, #root {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #FFF9F0;
-      /* iOS 안전 영역 대응 */
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-    }
-    
-    /* 스크롤바 숨기기 */
-    ::-webkit-scrollbar {
-      display: none;
-    }
-    
-    /* PWA 설치 배너 */
-    .install-banner {
-      position: fixed;
-      bottom: 100px;
-      left: 20px;
-      right: 20px;
-      background: linear-gradient(135deg, #2D2A26 0%, #4A4540 100%);
-      color: white;
-      padding: 16px 20px;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-      z-index: 9999;
-      animation: slideUp 0.3s ease;
-    }
-    
-    @keyframes slideUp {
-      from { transform: translateY(100px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-    
-    .install-banner-text {
-      flex: 1;
-    }
-    
-    .install-banner-title {
-      font-weight: 600;
-      font-size: 14px;
-      margin-bottom: 4px;
-    }
-    
-    .install-banner-desc {
-      font-size: 12px;
-      opacity: 0.8;
-    }
-    
-    .install-banner-btn {
-      background: #D4AF37;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 10px;
-      color: white;
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-      margin-left: 12px;
-    }
-    
-    .install-banner-close {
-      background: none;
-      border: none;
-      color: white;
-      opacity: 0.6;
-      font-size: 20px;
-      cursor: pointer;
-      padding: 0 8px;
-      margin-left: 8px;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FFF9F0; }
+    ::-webkit-scrollbar { display: none; }
+    #loading { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 18px; color: #666; }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root"><div id="loading">🌿 로딩 중...</div></div>
   
-  <!-- 앱 스크립트 -->
-  <script type="text/babel" src="/app.js"></script>
-  
-  <!-- Service Worker 등록 -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('✅ Service Worker 등록 성공'))
-          .catch(err => console.log('❌ Service Worker 등록 실패:', err));
+  <script type="text/babel">
+    const { useState, useRef } = React;
+    const API_URL = 'https://gutbuddy-api.onrender.com';
+
+    const GutBuddyApp = () => {
+      const [activeTab, setActiveTab] = useState('home');
+      const [activeMeal, setActiveMeal] = useState('lunch');
+      const [meals, setMeals] = useState({
+        breakfast: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null },
+        lunch: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null },
+        dinner: { stoolImages: [null, null, null], foodImages: [null, null, null], analyzed: false, analysisResult: null }
       });
-    }
-    
-    // iOS 설치 안내
-    let deferredPrompt;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    
-    // 이미 설치됐거나, 배너를 닫은 적이 있으면 표시 안함
-    const bannerDismissed = localStorage.getItem('installBannerDismissed');
-    
-    if (isIOS && !isStandalone && !bannerDismissed) {
-      setTimeout(() => {
-        const banner = document.createElement('div');
-        banner.className = 'install-banner';
-        banner.innerHTML = `
-          <div class="install-banner-text">
-            <div class="install-banner-title">📱 GutBuddy 앱 설치</div>
-            <div class="install-banner-desc">공유 버튼 → "홈 화면에 추가"</div>
+      const [currentPlan, setCurrentPlan] = useState('Basic');
+      const [chatMessages, setChatMessages] = useState([{ role: 'assistant', content: '안녕하세요! 장 건강에 대해 궁금한 점을 물어보세요. 🌿', image: null }]);
+      const [chatInput, setChatInput] = useState('');
+      const [quickAnalyzing, setQuickAnalyzing] = useState(false);
+      const [quickAnalysisResult, setQuickAnalysisResult] = useState(null);
+      const [touchStart, setTouchStart] = useState(null);
+      
+      const stoolInputRefs = useRef([null, null, null]);
+      const foodInputRefs = useRef([null, null, null]);
+      const quickAnalysisRef = useRef(null);
+      const chatImageRef = useRef(null);
+
+      const mealNames = { breakfast: '아침', lunch: '점심', dinner: '저녁' };
+      const mealIcons = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' };
+      const mealOrder = ['breakfast', 'lunch', 'dinner'];
+
+      const goToPrevMeal = () => { const i = mealOrder.indexOf(activeMeal); if (i > 0) setActiveMeal(mealOrder[i - 1]); };
+      const goToNextMeal = () => { const i = mealOrder.indexOf(activeMeal); if (i < 2) setActiveMeal(mealOrder[i + 1]); };
+      const onTouchStart = (e) => setTouchStart(e.touches[0].clientX);
+      const onTouchMove = (e) => { if (!touchStart) return; const diff = touchStart - e.touches[0].clientX; if (Math.abs(diff) > 50) { diff > 0 ? goToNextMeal() : goToPrevMeal(); setTouchStart(null); } };
+      const onTouchEnd = () => setTouchStart(null);
+
+      const calculateGutHealth = () => { let t = 0, c = 0; Object.values(meals).forEach(m => { if (m.analyzed && m.analysisResult) { t += m.analysisResult.gutScore || 70; c++; } }); return c > 0 ? Math.round(t / c) : 72; };
+      const calculateNutrients = () => { let cal = 0, carb = 0, prot = 0, fat = 0; Object.values(meals).forEach(m => { if (m.analyzed && m.analysisResult) { cal += m.analysisResult.calories || 0; carb += m.analysisResult.carbs || 0; prot += m.analysisResult.protein || 0; fat += m.analysisResult.fat || 0; } }); return { cal, carb, prot, fat }; };
+
+      const handleStoolUpload = (i) => stoolInputRefs.current[i]?.click();
+      const handleFoodUpload = (i) => foodInputRefs.current[i]?.click();
+      const handleStoolFile = (i, e) => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = (ev) => setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], stoolImages: p[activeMeal].stoolImages.map((img, idx) => idx === i ? ev.target.result : img) } })); r.readAsDataURL(f); } };
+      const handleFoodFile = (i, e) => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = (ev) => setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], foodImages: p[activeMeal].foodImages.map((img, idx) => idx === i ? ev.target.result : img) } })); r.readAsDataURL(f); } };
+
+      const handleAnalyze = () => {
+        const result = { gutScore: Math.floor(Math.random() * 20) + 70, calories: Math.floor(Math.random() * 300) + 400, carbs: Math.floor(Math.random() * 30) + 40, protein: Math.floor(Math.random() * 15) + 20, fat: Math.floor(Math.random() * 10) + 10, feedback: '균형 잡힌 식단입니다! 🥗' };
+        setMeals(p => ({ ...p, [activeMeal]: { ...p[activeMeal], analyzed: true, analysisResult: result } }));
+      };
+
+      const handleQuickClick = () => quickAnalysisRef.current?.click();
+      const handleQuickFile = async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        setQuickAnalyzing(true);
+        const r = new FileReader();
+        r.onload = async (ev) => {
+          const img = ev.target.result;
+          try {
+            const res = await fetch(API_URL + '/api/analyze-stool', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: img }) });
+            const data = await res.json();
+            if (data.success && data.result.isStool) {
+              setQuickAnalysisResult({ image: img, stoolType: { type: data.result.bristolType, status: data.result.status, emoji: data.result.statusEmoji, color: data.result.status === '좋음' ? '#D4AF37' : '#8BC34A' }, analysis: { condition: data.result.condition, description: data.result.description, solutions: data.result.solutions, tips: data.result.tip }, analyzedAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) });
+              setActiveTab('analysis');
+            } else { alert(data.result?.message || '변 사진이 아닙니다.'); }
+          } catch (err) {
+            setQuickAnalysisResult({ image: img, stoolType: { type: '브리스톨 4형', status: '좋음', emoji: '👍', color: '#D4AF37' }, analysis: { condition: '건강한 상태', description: '변의 형태가 양호합니다.', solutions: ['식습관 유지', '수분 섭취', '규칙적 식사'], tips: '⚠️ 데모 모드' }, analyzedAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }), isDemo: true });
+            setActiveTab('analysis');
+          }
+          setQuickAnalyzing(false);
+        };
+        r.readAsDataURL(f);
+        if (quickAnalysisRef.current) quickAnalysisRef.current.value = '';
+      };
+
+      const sendMessage = async () => {
+        if (!chatInput.trim()) return;
+        const msg = chatInput.trim();
+        setChatMessages(p => [...p, { role: 'user', content: msg, image: null }]);
+        setChatInput('');
+        try {
+          const res = await fetch(API_URL + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) });
+          const data = await res.json();
+          if (data.success) setChatMessages(p => [...p, { role: 'assistant', content: data.reply, image: null }]);
+          else throw new Error();
+        } catch { setChatMessages(p => [...p, { role: 'assistant', content: '장 건강을 위해 식이섬유 섭취를 권장해요! 🥬 (데모)', image: null }]); }
+      };
+
+      const handleChatImgClick = () => chatImageRef.current?.click();
+      const handleChatImgFile = (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        const r = new FileReader();
+        r.onload = (ev) => {
+          setChatMessages(p => [...p, { role: 'user', content: chatInput.trim() || '사진 분석해주세요', image: ev.target.result }]);
+          setChatInput('');
+          setTimeout(() => setChatMessages(p => [...p, { role: 'assistant', content: '사진 분석 완료! 건강해 보여요 🔍', image: null }]), 1500);
+        };
+        r.readAsDataURL(f);
+        if (chatImageRef.current) chatImageRef.current.value = '';
+      };
+
+      const gutHealth = calculateGutHealth();
+      const nutrients = calculateNutrients();
+      const currentMeal = meals[activeMeal];
+
+      const s = {
+        container: { width: '100%', height: '100%', maxWidth: 430, margin: '0 auto', background: '#FFF9F0', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+        header: { padding: '16px 20px', background: 'linear-gradient(135deg, #D4AF37 0%, #C49B30 100%)', color: 'white', textAlign: 'center', fontWeight: 700, fontSize: 18 },
+        content: { flex: 1, overflow: 'auto', padding: 20 },
+        navBar: { display: 'flex', justifyContent: 'space-around', padding: '12px 0 calc(12px + env(safe-area-inset-bottom))', background: 'white', borderTop: '1px solid #eee' },
+        navItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 10, color: '#999', cursor: 'pointer', border: 'none', background: 'none', padding: '4px 12px' },
+        navActive: { color: '#D4AF37' },
+        card: { background: 'white', borderRadius: 16, padding: 20, marginBottom: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
+        btn: { width: '100%', padding: 16, background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 600, cursor: 'pointer' },
+        imgBox: { width: 80, height: 80, borderRadius: 12, background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px dashed #D4AF37', overflow: 'hidden' },
+        mealTab: { flex: 1, padding: 12, border: 'none', borderRadius: 10, background: 'transparent', cursor: 'pointer', fontSize: 14 },
+        mealActive: { background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white' }
+      };
+
+      const renderHome = () => (
+        <div>
+          <div style={s.card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B30)', borderRadius: 16, padding: '14px 20px', minWidth: 110, textAlign: 'center' }}>
+                <div style={{ fontSize: 34, fontWeight: 700, color: 'white' }}>{gutHealth}%</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>장 건강</div>
+              </div>
+              <div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#5D5A56', marginBottom: 6 }}>🤖 AI 조언</div>
+                <div style={{ fontSize: 12, color: '#8B7355', lineHeight: 1.5 }}>오늘 식이섬유 섭취가 좋아요! 프로바이오틱스를 추가해보세요.</div>
+              </div>
+            </div>
           </div>
-          <button class="install-banner-close" onclick="this.parentElement.remove(); localStorage.setItem('installBannerDismissed', 'true');">×</button>
-        `;
-        document.body.appendChild(banner);
-        
-        // 10초 후 자동으로 사라짐
-        setTimeout(() => banner.remove(), 10000);
-      }, 3000);
-    }
+          <div style={{ ...s.card, padding: '18px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 32, fontWeight: 700, color: '#D4AF37' }}>{nutrients.cal || 1650}</span>
+              <span style={{ fontSize: 14, color: '#8B7355' }}>kcal</span>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {[{ l: '탄수화물', v: nutrients.carb || 180, c: '#FF9500' }, { l: '단백질', v: nutrients.prot || 65, c: '#FF3B30' }, { l: '지방', v: nutrients.fat || 45, c: '#FFCC00' }].map((x, i) => (
+                <div key={i} style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: '16px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#2D2A26' }}>{x.v}g</div>
+                  <div style={{ fontSize: 11, color: '#8B7355', marginTop: 4 }}>{x.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <input type="file" accept="image/*" capture="environment" ref={quickAnalysisRef} onChange={handleQuickFile} style={{ display: 'none' }} />
+          <button onClick={handleQuickClick} disabled={quickAnalyzing} style={{ ...s.btn, opacity: quickAnalyzing ? 0.7 : 1 }}>{quickAnalyzing ? '⏳ 분석 중...' : '🚽 빠른 변 분석'}</button>
+        </div>
+      );
+
+      const renderDiet = () => (
+        <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, background: 'white', borderRadius: 12, padding: 8 }}>
+            {mealOrder.map(m => (<button key={m} onClick={() => setActiveMeal(m)} style={{ ...s.mealTab, ...(activeMeal === m ? s.mealActive : {}) }}>{mealIcons[m]} {mealNames[m]} {meals[m].analyzed && '✓'}</button>))}
+          </div>
+          <div style={s.card}>
+            <h3 style={{ fontSize: 16, marginBottom: 16, color: '#2D2A26' }}>{mealIcons[activeMeal]} {mealNames[activeMeal]} 기록</h3>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>🚽 변 사진</div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {[0, 1, 2].map(i => (<div key={i}><input type="file" accept="image/*" capture="environment" ref={el => stoolInputRefs.current[i] = el} onChange={(e) => handleStoolFile(i, e)} style={{ display: 'none' }} /><div onClick={() => handleStoolUpload(i)} style={{ ...s.imgBox, borderRadius: '50%' }}>{currentMeal.stoolImages[i] ? <img src={currentMeal.stoolImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <span style={{ fontSize: 24 }}>+</span>}</div></div>))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: '#8B7355', marginBottom: 10 }}>🍽️ 식단 사진</div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {[0, 1, 2].map(i => (<div key={i}><input type="file" accept="image/*" capture="environment" ref={el => foodInputRefs.current[i] = el} onChange={(e) => handleFoodFile(i, e)} style={{ display: 'none' }} /><div onClick={() => handleFoodUpload(i)} style={s.imgBox}>{currentMeal.foodImages[i] ? <img src={currentMeal.foodImages[i]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: 24 }}>+</span>}</div></div>))}
+              </div>
+            </div>
+            <button onClick={handleAnalyze} style={s.btn}>{currentMeal.analyzed ? '✅ 석 완료' : '🔍 AI 분석하기'}</button>
+            {currentMeal.analyzed && currentMeal.analysisResult && (<div style={{ marginTop: 16, padding: 16, background: '#FFF9F0', borderRadius: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#D4AF37', marginBottom: 8 }}>📊 분석 결과</div><div style={{ fontSize: 13, color: '#5D5A56' }}>{currentMeal.analysisResult.feedback}</div></div>)}
+          </div>
+          <div style={{ textAlign: 'center', color: '#999', fontSize: 12 }}>← 좌우로 스와이프 →</div>
+        </div>
+      );
+
+      const renderCalendar = () => {
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const today = new Date();
+        const emojis = ['😊', '😐', '😣', '😄', '🙂'];
+        return (
+          <div style={s.card}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}><span style={{ fontSize: 18, fontWeight: 600 }}>{today.getFullYear()}년 {today.getMonth() + 1}월</span></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, textAlign: 'center' }}>
+              {days.map(d => <div key={d} style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>{d}</div>)}
+              {Array.from({ length: 35 }, (_, i) => { const day = i - new Date(today.getFullYear(), today.getMonth(), 1).getDay() + 1; const valid = day > 0 && day <= 31; const isToday = day === today.getDate(); return (<div key={i} style={{ padding: 8, borderRadius: 8, background: isToday ? '#D4AF37' : 'transparent', color: isToday ? 'white' : valid ? '#333' : '#ccc' }}>{valid && <div style={{ fontSize: 12 }}>{day}</div>}{valid && day <= today.getDate() && <div style={{ fontSize: 14 }}>{emojis[day % 5]}</div>}</div>); })}
+            </div>
+          </div>
+        );
+      };
+
+      const renderAnalysis = () => (
+        <div>
+          {quickAnalysisResult && (
+            <div style={{ ...s.card, border: '2px solid #D4AF37' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}><span style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B30)', color: 'white', padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>🔬 분석 결과</span><span style={{ fontSize: 12, color: '#999' }}>{quickAnalysisResult.analyzedAt}</span></div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}><img src={quickAnalysisResult.image} style={{ width: 100, height: 100, borderRadius: 12, objectFit: 'cover' }} /><div style={{ flex: 1, background: '#FFF9F0', borderRadius: 12, padding: 12, textAlign: 'center' }}><div style={{ fontSize: 15, fontWeight: 600, color: '#5D5A56' }}>{quickAnalysisResult.stoolType.type}</div><div style={{ fontSize: 28, margin: '8px 0' }}>{quickAnalysisResult.stoolType.emoji}</div><div style={{ fontSize: 14, fontWeight: 600, color: quickAnalysisResult.stoolType.color }}>{quickAnalysisResult.stoolType.status}</div></div></div>
+              <div style={{ background: '#FFF9F0', borderRadius: 12, padding: 16, marginBottom: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#5D5A56', marginBottom: 8 }}>📋 분석</div><div style={{ fontSize: 13, color: '#8B7355', lineHeight: 1.6 }}>{quickAnalysisResult.analysis.description}</div></div>
+              <div style={{ background: '#F0FFF4', borderRadius: 12, padding: 16, marginBottom: 12 }}><div style={{ fontSize: 14, fontWeight: 600, color: '#2E7D32', marginBottom: 10 }}>💡 해결책</div>{quickAnalysisResult.analysis.solutions.map((x, i) => (<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><span style={{ width: 22, height: 22, borderRadius: '50%', background: '#4CAF50', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{i + 1}</span><span style={{ fontSize: 13, color: '#5D5A56' }}>{x}</span></div>))}</div>
+              <button onClick={() => setQuickAnalysisResult(null)} style={{ ...s.btn, background: '#E8E0D5', color: '#5D5A56' }}>결과 닫기</button>
+            </div>
+          )}
+          <div style={s.card}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>💬 AI 상담</div>
+            <div style={{ height: 220, overflowY: 'auto', marginBottom: 16 }}>{chatMessages.map((m, i) => (<div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}><div style={{ maxWidth: '80%', padding: 12, borderRadius: 16, background: m.role === 'user' ? 'linear-gradient(135deg, #D4AF37, #C49B30)' : '#F5F0E8', color: m.role === 'user' ? 'white' : '#333' }}>{m.image && <img src={m.image} style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 10, marginBottom: 8 }} />}<div style={{ fontSize: 14, lineHeight: 1.5 }}>{m.content}</div></div></div>))}</div>
+            <input type="file" accept="image/*" ref={chatImageRef} onChange={handleChatImgFile} style={{ display: 'none' }} />
+            <div style={{ display: 'flex', gap: 8 }}><button onClick={handleChatImgClick} style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid #ddd', background: 'white', cursor: 'pointer', fontSize: 18 }}>📷</button><input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyPress={e => e.key === 'Enter' && sendMessage()} placeholder="메시지 입력..." style={{ flex: 1, padding: 12, borderRadius: 24, border: '1px solid #E8E0D5', fontSize: 14 }} /><button onClick={sendMessage} style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #C49B30)', border: 'none', color: 'white', cursor: 'pointer', fontSize: 18 }}>➤</button></div>
+          </div>
+        </div>
+      );
+
+      const plans = [
+        { id: 'Basic', name: 'Basic', price: '무료', monthly: '', yearly: '', daily: '', color: '#999', features: ['하루 1회 분석', '기본 리포트'] },
+        { id: 'Essential', name: 'Essential', price: '₩17,000', monthly: '/월', yearly: '₩99,000/년', daily: '일 ₩550', color: '#4CAF50', features: ['무제한 분석', '상세 리포트', 'AI 채팅'] },
+        { id: 'Pro', name: 'Pro ⭐', price: '₩22,000', monthly: '/월', yearly: '₩149,000/년', daily: '일 ₩800', color: '#D4AF37', badge: '추천', features: ['무제한 분석', '프리미엄 리포트', 'AI 채팅 무제한', '맞춤 식단 추천'] },
+        { id: 'Ultimate', name: 'Ultimate', price: '₩33,000', monthly: '/월', yearly: '₩229,000/년', daily: '일 ₩1,200', color: '#9C27B0', badge: '가족', features: ['모든 Pro 기능', '가족 5명 공유', '1:1 전문 상담', '우선 고객 지원'] }
+      ];
+
+      const renderMy = () => (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, background: 'white', borderRadius: 16, marginBottom: 20 }}>
+            <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #C49B30)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>👤</div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>사용자</div>
+              <div style={{ fontSize: 13, color: plans.find(p => p.id === currentPlan)?.color }}>{currentPlan === 'Basic' ? '🆓 Basic (무료)' : `✨ ${currentPlan}`}</div>
+            </div>
+          </div>
+
+          <div style={s.card}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: '#2D2A26' }}>🌟 구독 플랜 선택</div>
+            
+            {plans.map((plan) => (
+              <div key={plan.id} onClick={() => setCurrentPlan(plan.id)} style={{ padding: 16, borderRadius: 12, border: currentPlan === plan.id ? `2px solid ${plan.color}` : '1px solid #eee', marginBottom: 12, cursor: 'pointer', background: currentPlan === plan.id ? `${plan.color}15` : 'white', position: 'relative' }}>
+                {plan.badge && <span style={{ position: 'absolute', top: -8, right: 12, background: plan.color, color: 'white', padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{plan.badge}</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: plan.color }}>{plan.name}</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{plan.price}<span style={{ fontSize: 12, fontWeight: 400 }}>{plan.monthly}</span></div>
+                    {plan.yearly && <div style={{ fontSize: 11, color: '#999' }}>{plan.yearly}</div>}
+                  </div>
+                </div>
+                {plan.daily && <div style={{ fontSize: 12, color: '#666', marginBottom: 10, background: '#f9f9f9', display: 'inline-block', padding: '4px 8px', borderRadius: 6 }}>{plan.daily}</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {plan.features.map((f, j) => <span key={j} style={{ fontSize: 11, background: currentPlan === plan.id ? `${plan.color}20` : '#f5f5f5', padding: '4px 8px', borderRadius: 6, color: currentPlan === plan.id ? plan.color : '#666' }}>✓ {f}</span>)}
+                </div>
+              </div>
+            ))}
+            
+            {currentPlan !== 'Basic' && (
+              <div style={{ marginTop: 16 }}>
+                <button style={s.btn}>구독 시작하기</button>
+                <button onClick={() => setCurrentPlan('Basic')} style={{ ...s.btn, background: '#f5f5f5', color: '#999', marginTop: 8 }}>구독 해지</button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+
+      return (
+        <div style={s.container}>
+          <div style={s.header}>🌿 GutBuddy</div>
+          <div style={s.content}>{activeTab === 'home' && renderHome()}{activeTab === 'diet' && renderDiet()}{activeTab === 'calendar' && renderCalendar()}{activeTab === 'analysis' && renderAnalysis()}{activeTab === 'my' && renderMy()}</div>
+          <nav style={s.navBar}>{[{ id: 'home', icon: '🏠', label: '홈' }, { id: 'diet', icon: '🍽️', label: '식단' }, { id: 'calendar', icon: '📅', label: '캘린더' }, { id: 'analysis', icon: '📊', label: '분석' }, { id: 'my', icon: '👤', label: '마이' }].map(t => (<button key={t.id} onClick={() => setActiveTab(t.id)} style={{ ...s.navItem, ...(activeTab === t.id ? s.navActive : {}) }}><span style={{ fontSize: 24, marginBottom: 4 }}>{t.icon}</span>{t.label}</button>))}</nav>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<GutBuddyApp />);
   </script>
 </body>
 </html>
